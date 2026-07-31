@@ -1,0 +1,60 @@
+services:
+  api:
+    build: .
+    container_name: api
+    mem_limit: 64m
+    ports:
+      - "8080:8080"
+    environment:
+      ALLOY_URL: http://alloy:3101/loki/api/v1/push
+    depends_on:
+      - alloy
+
+  alloy:
+    image: grafana/alloy:v1.18.0
+    container_name: alloy
+    mem_limit: 128m
+    command: run --server.http.listen-addr=0.0.0.0:12345 /etc/alloy/config.alloy
+    ports:
+      - "12345:12345"
+      - "3101:3101"
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+    depends_on:
+      - loki
+
+  loki:
+    image: grafana/loki:3.7.4
+    container_name: loki
+    mem_limit: 256m
+    command: -config.file=/etc/loki/config.yml
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki/config.yml:/etc/loki/config.yml:ro
+      - loki-data:/loki
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:3100/ready | grep -q ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  grafana:
+    image: grafana/grafana:12.4.6
+    container_name: grafana
+    mem_limit: 256m
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - loki
+
+volumes:
+  loki-data:
+  grafana-data:
